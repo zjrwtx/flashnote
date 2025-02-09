@@ -1,7 +1,7 @@
 # FlashNote
 
 FlashNote 是一个基于 Next.js 开发的渐进式 Web 应用（PWA），可以将 Markdown 文档转换为抽认卡进行学习。它支持数学公式、表格、列表等多种格式，是一个轻量级的学习工具。
-在线体验：https://flashnote-zjrwtx.vercel.app
+在线体验：https://www.zjrwtx.online
 ## ✨ 功能特点
 
 - 📱 支持 PWA，可安装到桌面
