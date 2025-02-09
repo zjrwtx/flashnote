@@ -11,6 +11,10 @@ FlashNote 是一个基于 Next.js 开发的渐进式 Web 应用（PWA），可�
 - 🎯 简洁的卡片式学习界面
 - 📂 本地存储，无需登录
 - 🎨 响应式设计，支持移动端
+<img width="1469" alt="image" src="https://github.com/user-attachments/assets/cefd7f91-29b8-4998-95ca-d2741801f167" />
+<img width="1469" alt="image" src="https://github.com/user-attachments/assets/e8acf1ec-5867-484b-aa69-8cc594916bb0" />
+<img width="1460" alt="image" src="https://github.com/user-attachments/assets/d863da2b-784c-44c2-9279-0960452e8c59" />
+<img width="1468" alt="image" src="https://github.com/user-attachments/assets/ed64265d-93bc-4095-8158-d8912b87cb8e" />
 
 ## 🚀 快速开始
 
