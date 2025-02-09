@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronUpIcon,
   ChevronDownIcon,
-  FolderIcon,
   HomeIcon,
   PlusIcon,
   DocumentTextIcon,
@@ -23,7 +22,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { parseMarkdown } from '../utils/markdown';
-import type { Card, FileData } from '../types';
+import type { FileData } from '../types';
 
 const STORAGE_KEY = 'flashnote-files';
 
