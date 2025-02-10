@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import type { JSX } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronUpIcon,
@@ -10,6 +11,10 @@ import {
   DocumentTextIcon,
   Bars3Icon,
   XMarkIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  PencilIcon,
+  CheckIcon,
 } from '@heroicons/react/24/outline';
 import {
   HomeIcon as HomeIconSolid,
@@ -23,17 +28,38 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { parseMarkdown } from '../utils/markdown';
 import type { FileData } from '../types';
+import { themes, type Theme } from '../utils/themes';
 
 const STORAGE_KEY = 'flashnote-files';
+const THEME_KEY = 'flashnote-theme';
 
-type Tab = 'home' | 'study';
+type Tab = 'home' | 'study' | 'edit';
+
+// 添加搜索结果类型
+interface SearchResult {
+  fileId: string;
+  fileName: string;
+  cardIndex: number;
+  title: string;
+  content: string;
+  matchPositions: { start: number; end: number; }[];
+}
 
 export default function Home() {
   const [files, setFiles] = useState<FileData[]>([]);
   const [currentFileId, setCurrentFileId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showToc, setShowToc] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<Theme>(themes[0]);
+  const [showThemes, setShowThemes] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editFileName, setEditFileName] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // 添加搜索相关状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // 从本地存储加载数据
   useEffect(() => {
@@ -57,36 +83,108 @@ export default function Home() {
     }
   }, [files]);
 
+  // 从本地存储加载主题
+  useEffect(() => {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme) {
+      try {
+        const theme = themes.find(t => t.name === savedTheme);
+        if (theme) {
+          setCurrentTheme(theme);
+          applyTheme(theme);
+        }
+      } catch (error) {
+        console.error('加载主题失败:', error);
+      }
+    }
+  }, []);
+
+  // 应用主题
+  const applyTheme = (theme: Theme) => {
+    const root = document.documentElement;
+    Object.entries(theme.colors).forEach(([key, value]) => {
+      root.style.setProperty(
+        `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`,
+        value
+      );
+    });
+    localStorage.setItem(THEME_KEY, theme.name);
+  };
+
   const currentFile = files.find(f => f.id === currentFileId);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
       console.log('没有选择文件');
       return;
     }
 
-    console.log('选择的文件:', file.name);
-    const text = await file.text();
-    console.log('文件内容:', text);
-    const { cards } = parseMarkdown(text);
-    console.log('解析后的卡片:', cards);
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      console.log('选择的文件:', file.name);
+      const text = await file.text();
+      console.log('文件内容:', text);
+      const { cards } = parseMarkdown(text);
+      console.log('解析后的卡片:', cards);
 
-    const newFile: FileData = {
-      id: Date.now().toString(),
-      name: file.name,
-      cards,
-      lastModified: file.lastModified,
-      currentIndex: 0,
-    };
+      const newFile: FileData = {
+        id: Date.now().toString() + i,
+        name: file.name,
+        cards,
+        lastModified: file.lastModified,
+        currentIndex: 0,
+      };
 
-    setFiles(prev => [...prev, newFile]);
-    setCurrentFileId(newFile.id);
-    setActiveTab('study');
+      setFiles(prev => [...prev, newFile]);
+    }
+    
+    if (files.length === 1) {
+      const newFileId = Date.now().toString() + '0';
+      setCurrentFileId(newFileId);
+      setActiveTab('study');
+    }
   };
 
-  const handleUpload = () => {
-    fileInputRef.current?.click();
+  const handleExport = (fileId?: string) => {
+    if (fileId) {
+      // 导出单个文件
+      const file = files.find(f => f.id === fileId);
+      if (!file) return;
+      
+      const content = file.cards.map(card => {
+        const hashtags = '#'.repeat(card.level);
+        return `${hashtags} ${card.title}\n\n${card.content}`;
+      }).join('\n\n');
+      
+      const blob = new Blob([content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      // 导出所有文件
+      files.forEach(file => {
+        const content = file.cards.map(card => {
+          const hashtags = '#'.repeat(card.level);
+          return `${hashtags} ${card.title}\n\n${card.content}`;
+        }).join('\n\n');
+        
+        const blob = new Blob([content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
   };
 
   const handleDeleteFile = (fileId: string) => {
@@ -105,6 +203,85 @@ export default function Home() {
       setCurrentFileId(null);
       setActiveTab('home');
     }
+  };
+
+  // 添加搜索函数
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const results: SearchResult[] = [];
+    const searchRegex = new RegExp(query, 'gi');
+
+    files.forEach(file => {
+      file.cards.forEach((card, cardIndex) => {
+        const contentToSearch = `${card.title}\n${card.content}`;
+        const matches = [...contentToSearch.matchAll(searchRegex)];
+        
+        if (matches.length > 0) {
+          const matchPositions = matches.map(match => ({
+            start: match.index!,
+            end: match.index! + match[0].length,
+          }));
+
+          results.push({
+            fileId: file.id,
+            fileName: file.name,
+            cardIndex,
+            title: card.title,
+            content: contentToSearch,
+            matchPositions,
+          });
+        }
+      });
+    });
+
+    setSearchResults(results);
+  };
+
+  // 添加跳转到卡片函数
+  const jumpToCard = (fileId: string, cardIndex: number) => {
+    setCurrentFileId(fileId);
+    updateCurrentIndex(fileId, cardIndex);
+    setActiveTab('study');
+  };
+
+  // 添加高亮显示函数
+  const highlightText = (text: string, positions: { start: number; end: number; }[]) => {
+    let lastIndex = 0;
+    const parts: JSX.Element[] = [];
+
+    positions.forEach((pos, i) => {
+      // 添加不匹配的文本
+      if (pos.start > lastIndex) {
+        parts.push(
+          <span key={`text-${i}`}>
+            {text.slice(lastIndex, pos.start)}
+          </span>
+        );
+      }
+      // 添加高亮文本
+      parts.push(
+        <span key={`highlight-${i}`} className="bg-primary/20 text-primary rounded px-1">
+          {text.slice(pos.start, pos.end)}
+        </span>
+      );
+      lastIndex = pos.end;
+    });
+
+    // 添加剩余文本
+    if (lastIndex < text.length) {
+      parts.push(
+        <span key="text-last">
+          {text.slice(lastIndex)}
+        </span>
+      );
+    }
+
+    return parts;
   };
 
   const updateCurrentIndex = (fileId: string, newIndex: number) => {
@@ -137,24 +314,70 @@ export default function Home() {
     );
   };
 
+  const handleCreateNote = () => {
+    setEditContent(`# 新笔记
+
+在这里输入笔记内容...`);
+    setEditFileName('新笔记.md');
+    setActiveTab('edit');
+  };
+
+  const handleSaveNote = () => {
+    const { cards } = parseMarkdown(editContent);
+    
+    // 从第一个一级标题获取文件名
+    let fileName = '新笔记.md';
+    if (cards.length > 0 && cards[0].level === 1) {
+      fileName = `${cards[0].title}.md`;
+    }
+
+    const newFile: FileData = {
+      id: Date.now().toString(),
+      name: fileName,
+      cards,
+      lastModified: Date.now(),
+      currentIndex: 0,
+    };
+
+    setFiles(prev => [...prev, newFile]);
+    setCurrentFileId(newFile.id);
+    setActiveTab('study');
+  };
+
+  const handleEditFile = (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (!file) return;
+
+    const content = file.cards.map(card => {
+      const hashtags = '#'.repeat(card.level);
+      return `${hashtags} ${card.title}\n\n${card.content}`;
+    }).join('\n\n');
+
+    setEditContent(content);
+    setEditFileName(file.name);
+    setActiveTab('edit');
+  };
+
   const renderMainContent = () => {
     if (files.length === 0) {
       return (
         <div className="text-center px-4">
           <div className="mb-8">
-            <DocumentTextIcon className="w-16 h-16 mx-auto text-blue-500 mb-4" />
-            <h2 className="text-xl font-semibold mb-2">开始学习</h2>
-            <p className="text-gray-500 mb-8">导入 Markdown 文件开始制作抽认卡</p>
+            <DocumentTextIcon className="w-16 h-16 mx-auto text-primary mb-4" />
+            <h2 className="text-2xl font-semibold mb-2">开始学习</h2>
+            <p className="text-secondary mb-8">导入 Markdown 文件开始制作抽认卡</p>
           </div>
           <button
-            onClick={handleUpload}
-            className="bg-blue-500 text-white px-6 py-3 rounded-2xl shadow-lg hover:bg-blue-600 transition-colors w-full max-w-xs"
+            onClick={() => {
+              fileInputRef.current?.click();
+            }}
+            className="apple-button w-full max-w-xs"
           >
             导入 Markdown 文件
           </button>
-          <div className="mt-8 bg-gray-50 rounded-2xl p-4 text-left">
+          <div className="mt-8 apple-card p-4 text-left">
             <p className="text-sm font-medium mb-2">支持的格式：</p>
-            <pre className="text-xs text-gray-600 whitespace-pre-wrap">
+            <pre className="text-xs text-secondary whitespace-pre-wrap">
               {`# 标题1
 这是第一个卡片的内容
 - 支持列表
@@ -177,40 +400,172 @@ $$`}
     if (activeTab === 'home') {
       return (
         <div className="px-4 pb-20">
-          <div className="grid gap-4 grid-cols-1">
-            {files.map(file => (
-              <div
-                key={file.id}
-                className="bg-white rounded-2xl shadow p-4 hover:shadow-md transition-shadow"
-                onClick={() => {
-                  setCurrentFileId(file.id);
-                  setActiveTab('study');
-                }}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-blue-50 p-2 rounded-xl">
-                      <DocumentTextIcon className="w-6 h-6 text-blue-500" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">{file.name}</h3>
-                      <p className="text-sm text-gray-500">
-                        {file.cards.length} 张卡片
+          {/* 搜索框 */}
+          <div className="sticky top-0 z-10 -mx-4 px-4 py-2 glass">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full px-4 py-2 pr-10 apple-card bg-card-background text-sm"
+                placeholder="搜索笔记内容..."
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary">
+                {searchQuery ? (
+                  <button
+                    onClick={() => handleSearch('')}
+                    className="p-1 hover:text-primary transition-colors"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <div className="p-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 搜索结果 */}
+          {searchQuery && (
+            <div className="mt-4 space-y-4">
+              {searchResults.length > 0 ? (
+                <>
+                  <p className="text-sm text-secondary">
+                    找到 {searchResults.length} 个结果
+                  </p>
+                  {searchResults.map((result, index) => (
+                    <div
+                      key={`${result.fileId}-${result.cardIndex}-${index}`}
+                      className="apple-card p-4 cursor-pointer hover:scale-[1.01] transition-transform"
+                      onClick={() => jumpToCard(result.fileId, result.cardIndex)}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <DocumentTextIcon className="w-4 h-4 text-primary" />
+                        <span className="text-sm text-secondary">{result.fileName}</span>
+                      </div>
+                      <h3 className="font-medium mb-1">
+                        {highlightText(result.title, result.matchPositions.filter(pos => pos.start < result.title.length))}
+                      </h3>
+                      <p className="text-sm text-secondary line-clamp-2">
+                        {highlightText(
+                          result.content.slice(result.title.length + 1),
+                          result.matchPositions
+                            .filter(pos => pos.start > result.title.length)
+                            .map(pos => ({
+                              start: pos.start - result.title.length - 1,
+                              end: pos.end - result.title.length - 1
+                            }))
+                        )}
                       </p>
                     </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteFile(file.id);
-                    }}
-                    className="text-gray-400 hover:text-red-500 p-2"
-                  >
-                    <TrashIcon className="w-5 h-5" />
-                  </button>
+                  ))}
+                </>
+              ) : (
+                <div className="text-center py-8 text-secondary">
+                  <p>未找到匹配的内容</p>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* 原有的文件列表 */}
+          {!searchQuery && (
+            <>
+              <div className="flex justify-end mb-4 gap-2">
+                {files.length > 0 && (
+                  <button
+                    onClick={() => handleExport()}
+                    className="px-4 py-2 text-sm text-primary hover:text-accent rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                    导出全部
+                  </button>
+                )}
               </div>
-            ))}
+              <div className="grid gap-4 grid-cols-1">
+                {files.map(file => (
+                  <div
+                    key={file.id}
+                    className="apple-card p-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div
+                        className="flex items-center gap-3 flex-1"
+                        onClick={() => {
+                          setCurrentFileId(file.id);
+                          setActiveTab('study');
+                        }}
+                      >
+                        <div className="bg-secondary-background p-2 rounded-xl">
+                          <DocumentTextIcon className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium">{file.name}</h3>
+                          <p className="text-sm text-secondary">
+                            {file.cards.length} 张卡片
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEditFile(file.id)}
+                          className="text-secondary hover:text-primary p-2 transition-colors"
+                        >
+                          <PencilIcon className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleExport(file.id)}
+                          className="text-secondary hover:text-primary p-2 transition-colors"
+                        >
+                          <ArrowDownTrayIcon className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteFile(file.id)}
+                          className="text-secondary hover:text-destructive p-2 transition-colors"
+                        >
+                          <TrashIcon className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    if (activeTab === 'edit') {
+      return (
+        <div className="h-[calc(100vh-8rem)] pb-20">
+          <div className="px-4 py-2 glass sticky top-0 z-10 flex items-center justify-between">
+            <input
+              type="text"
+              value={editFileName}
+              onChange={(e) => setEditFileName(e.target.value)}
+              className="bg-transparent border-none outline-none font-medium flex-1 mr-2"
+              placeholder="文件名"
+            />
+            <button
+              onClick={handleSaveNote}
+              className="p-2 text-primary hover:text-accent transition-colors"
+            >
+              <CheckIcon className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="p-4">
+            <textarea
+              ref={textareaRef}
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="w-full h-[calc(100vh-16rem)] p-4 apple-card font-mono text-sm resize-none focus:outline-none"
+              placeholder="在这里输入 Markdown 内容..."
+            />
           </div>
         </div>
       );
@@ -219,10 +574,10 @@ $$`}
     if (currentFile) {
       return (
         <div className="h-[calc(100vh-8rem)] pb-20">
-          <div className="px-4 py-2 backdrop-blur-lg bg-white/80 sticky top-0 z-10 flex items-center justify-between">
+          <div className="px-4 py-2 glass sticky top-0 z-10 flex items-center justify-between">
             <button
               onClick={() => setShowToc(prev => !prev)}
-              className="p-2 -ml-2 text-gray-500"
+              className="p-2 -ml-2 text-secondary hover:text-primary transition-colors"
             >
               {showToc ? (
                 <XMarkIcon className="w-6 h-6" />
@@ -243,10 +598,10 @@ $$`}
                   initial={{ x: -280 }}
                   animate={{ x: 0 }}
                   exit={{ x: -280 }}
-                  className="absolute top-0 left-0 w-[280px] h-full bg-white border-r border-gray-100 z-20 overflow-y-auto"
+                  className="absolute top-0 left-0 w-[280px] h-full glass border-r border-secondary/10 z-20 overflow-y-auto"
                 >
                   <div className="p-4">
-                    <h3 className="font-medium text-gray-500 mb-2">目录</h3>
+                    <h3 className="font-medium text-secondary mb-2">目录</h3>
                     <div className="space-y-1">
                       {currentFile.cards.map((card, index) => (
                         <button
@@ -255,10 +610,10 @@ $$`}
                             updateCurrentIndex(currentFile.id, index);
                             setShowToc(false);
                           }}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                             index === currentFile.currentIndex
-                              ? 'bg-blue-50 text-blue-600 font-medium'
-                              : 'hover:bg-gray-50'
+                              ? 'bg-primary/10 text-primary font-medium'
+                              : 'hover:bg-secondary-background'
                           }`}
                           style={{
                             paddingLeft: `${(card.level - 1) * 1 + 0.75}rem`,
@@ -281,7 +636,7 @@ $$`}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setShowToc(false)}
-                  className="absolute inset-0 bg-black/20 z-10"
+                  className="absolute inset-0 bg-black/20 backdrop-blur-sm z-10"
                 />
               )}
             </AnimatePresence>
@@ -296,11 +651,11 @@ $$`}
                   exit={{ opacity: 0, y: -20 }}
                   className="h-full"
                 >
-                  <div className="p-4 bg-white rounded-t-3xl min-h-full">
+                  <div className="p-4 apple-card min-h-full">
                     <h2 className="text-xl font-semibold mb-4">
                       {currentFile.cards[currentFile.currentIndex].title}
                     </h2>
-                    <div className="prose prose-sm max-w-none [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_tr]:even:bg-gray-50">
+                    <div className="prose prose-sm max-w-none prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-code:text-primary [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-secondary/20 [&_td]:p-2 [&_th]:border [&_th]:border-secondary/20 [&_th]:p-2 [&_tr]:even:bg-secondary-background/50">
                       {renderContent(currentFile.cards[currentFile.currentIndex].content)}
                     </div>
                   </div>
@@ -313,21 +668,21 @@ $$`}
             <button
               onClick={prevCard}
               disabled={currentFile.currentIndex === 0}
-              className="p-4 rounded-full bg-white shadow-lg disabled:opacity-50 disabled:shadow-none"
+              className="p-4 rounded-full glass disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95"
             >
               <ChevronUpIcon className="w-6 h-6" />
             </button>
             <button
               onClick={nextCard}
               disabled={currentFile.currentIndex === currentFile.cards.length - 1}
-              className="p-4 rounded-full bg-white shadow-lg disabled:opacity-50 disabled:shadow-none"
+              className="p-4 rounded-full glass disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95"
             >
               <ChevronDownIcon className="w-6 h-6" />
             </button>
           </div>
 
           <div className="fixed bottom-32 left-0 right-0 text-center">
-            <p className="text-sm font-medium text-gray-500 bg-white/80 backdrop-blur-sm py-1">
+            <p className="text-sm font-medium text-secondary glass py-1">
               {currentFile.currentIndex + 1} / {currentFile.cards.length}
             </p>
           </div>
@@ -337,14 +692,14 @@ $$`}
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="safe-top bg-white">
+    <main className="min-h-screen bg-background">
+      <div className="safe-top glass">
         <div className="px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold">FlashNote</h1>
           {files.length > 0 && activeTab === 'home' && (
             <button
               onClick={handleReset}
-              className="text-sm text-red-600"
+              className="text-sm text-destructive"
             >
               清空
             </button>
@@ -355,6 +710,7 @@ $$`}
       <input
         type="file"
         accept=".md"
+        multiple
         className="hidden"
         ref={fileInputRef}
         onChange={handleFileChange}
@@ -363,15 +719,15 @@ $$`}
       {renderMainContent()}
 
       {/* 底部导航栏 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom">
+      <div className="fixed bottom-0 left-0 right-0 glass border-t border-secondary/10 safe-bottom">
         <div className="flex items-center justify-around px-4 py-2">
           <button
             onClick={() => {
               setActiveTab('home');
               setCurrentFileId(null);
             }}
-            className={`flex flex-col items-center p-2 ${
-              activeTab === 'home' ? 'text-blue-500' : 'text-gray-400'
+            className={`flex flex-col items-center p-2 transition-colors ${
+              activeTab === 'home' ? 'text-primary' : 'text-secondary'
             }`}
           >
             {activeTab === 'home' ? (
@@ -381,22 +737,34 @@ $$`}
             )}
             <span className="text-xs mt-1">首页</span>
           </button>
-          
-          <button
-            onClick={handleUpload}
-            className="bg-blue-500 text-white p-4 rounded-full shadow-lg -mt-8"
-          >
-            <PlusIcon className="w-6 h-6" />
-          </button>
 
+          <div className="flex flex-col items-center">
+            <div className="flex gap-2 -mt-8">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="apple-button p-4 rounded-full"
+                title="导入文件"
+              >
+                <ArrowUpTrayIcon className="w-6 h-6" />
+              </button>
+              <button
+                onClick={handleCreateNote}
+                className="apple-button p-4 rounded-full"
+                title="新建笔记"
+              >
+                <PlusIcon className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          
           <button
             onClick={() => {
               if (currentFileId) {
                 setActiveTab('study');
               }
             }}
-            className={`flex flex-col items-center p-2 ${
-              activeTab === 'study' ? 'text-blue-500' : 'text-gray-400'
+            className={`flex flex-col items-center p-2 transition-colors ${
+              activeTab === 'study' ? 'text-primary' : 'text-secondary'
             }`}
           >
             {activeTab === 'study' ? (
@@ -406,7 +774,54 @@ $$`}
             )}
             <span className="text-xs mt-1">学习</span>
           </button>
+
+          <button
+            onClick={() => setShowThemes(prev => !prev)}
+            className={`flex flex-col items-center p-2 transition-colors ${
+              showThemes ? 'text-primary' : 'text-secondary'
+            }`}
+          >
+            <div
+              className="w-6 h-6 rounded-lg border-2 border-current"
+              style={{ background: currentTheme.colors.primary }}
+            />
+            <span className="text-xs mt-1">主题</span>
+          </button>
         </div>
+
+        {/* 主题选择面板 */}
+        <AnimatePresence>
+          {showThemes && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute bottom-full left-0 right-0 p-4 glass border-t border-secondary/10"
+            >
+              <div className="grid grid-cols-5 gap-4">
+                {themes.map(theme => (
+                  <button
+                    key={theme.name}
+                    onClick={() => {
+                      setCurrentTheme(theme);
+                      applyTheme(theme);
+                      setShowThemes(false);
+                    }}
+                    className="flex flex-col items-center gap-2"
+                  >
+                    <div
+                      className={`w-12 h-12 rounded-xl border-2 transition-transform hover:scale-110 ${
+                        theme.name === currentTheme.name ? 'border-primary' : 'border-secondary/20'
+                      }`}
+                      style={{ background: theme.colors.primary }}
+                    />
+                    <span className="text-xs">{theme.name}</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </main>
   );
