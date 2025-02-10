@@ -59,7 +59,6 @@ export default function Home() {
   // 添加搜索相关状态
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   // 从本地存储加载数据
   useEffect(() => {
