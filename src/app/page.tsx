@@ -307,6 +307,43 @@ export default function Home() {
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
+        components={{
+          // 自定义段落渲染
+          p: ({ children }) => {
+            return <div className="mb-4">{children}</div>;
+          },
+          // 自定义图片渲染
+          img: ({ src, alt }) => {
+            if (!src) return null;
+            return (
+              <div className="my-6">
+                <div className="flex justify-center">
+                  <img
+                    src={src}
+                    alt={alt || ''}
+                    className="max-w-full h-auto rounded-lg shadow-lg"
+                    loading="lazy"
+                  />
+                </div>
+                {alt && (
+                  <div className="text-center text-sm text-secondary mt-2">
+                    {alt}
+                  </div>
+                )}
+              </div>
+            );
+          },
+          // 自定义标题渲染，增加间距
+          h1: ({ children }) => (
+            <h1 className="text-2xl font-bold mt-8 mb-4">{children}</h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="text-xl font-semibold mt-6 mb-3">{children}</h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className="text-lg font-medium mt-4 mb-2">{children}</h3>
+          ),
+        }}
       >
         {content}
       </ReactMarkdown>
@@ -718,74 +755,84 @@ $$`}
       {renderMainContent()}
 
       {/* 底部导航栏 */}
-      <div className="fixed bottom-0 left-0 right-0 glass border-t border-secondary/10 safe-bottom">
-        <div className="flex items-center justify-around px-4 py-2">
-          <button
-            onClick={() => {
-              setActiveTab('home');
-              setCurrentFileId(null);
-            }}
-            className={`flex flex-col items-center p-2 transition-colors ${
-              activeTab === 'home' ? 'text-primary' : 'text-secondary'
-            }`}
-          >
-            {activeTab === 'home' ? (
-              <HomeIconSolid className="w-6 h-6" />
-            ) : (
-              <HomeIcon className="w-6 h-6" />
-            )}
-            <span className="text-xs mt-1">首页</span>
-          </button>
+      <div className="fixed bottom-0 left-0 right-0 safe-bottom">
+        {/* 导航栏主体 */}
+        <div className="glass border-t border-secondary/10 bg-card-background/80">
+          <div className="flex items-center justify-between px-6 py-2 max-w-lg mx-auto relative">
+            {/* 首页按钮 */}
+            <button
+              onClick={() => {
+                setActiveTab('home');
+                setCurrentFileId(null);
+              }}
+              className={`flex flex-col items-center w-16 py-1 transition-all ${
+                activeTab === 'home' 
+                  ? 'text-primary' 
+                  : 'text-secondary hover:text-primary/80'
+              }`}
+            >
+              {activeTab === 'home' ? (
+                <HomeIconSolid className="w-7 h-7" />
+              ) : (
+                <HomeIcon className="w-7 h-7" />
+              )}
+              <span className="text-xs mt-0.5">首页</span>
+            </button>
 
-          <div className="flex flex-col items-center">
-            <div className="flex gap-2 -mt-8">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="apple-button p-4 rounded-full"
-                title="导入文件"
-              >
-                <ArrowUpTrayIcon className="w-6 h-6" />
-              </button>
-              <button
-                onClick={handleCreateNote}
-                className="apple-button p-4 rounded-full"
-                title="新建笔记"
-              >
-                <PlusIcon className="w-6 h-6" />
-              </button>
-            </div>
+            {/* 导入按钮 */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex flex-col items-center w-16 py-1 transition-all text-secondary hover:text-primary/80`}
+            >
+              <ArrowUpTrayIcon className="w-7 h-7" />
+              <span className="text-xs mt-0.5">导入</span>
+            </button>
+
+            {/* 新建按钮 */}
+            <button
+              onClick={handleCreateNote}
+              className="absolute left-1/2 -translate-x-1/2 -top-6 bg-primary text-black p-4 rounded-2xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"
+            >
+              <PlusIcon className="w-6 h-6" />
+            </button>
+
+            {/* 学习按钮 */}
+            <button
+              onClick={() => {
+                if (currentFileId) {
+                  setActiveTab('study');
+                }
+              }}
+              className={`flex flex-col items-center w-16 py-1 transition-all ${
+                activeTab === 'study' 
+                  ? 'text-primary' 
+                  : 'text-secondary hover:text-primary/80'
+              }`}
+            >
+              {activeTab === 'study' ? (
+                <DocumentTextIconSolid className="w-7 h-7" />
+              ) : (
+                <DocumentTextIcon className="w-7 h-7" />
+              )}
+              <span className="text-xs mt-0.5">学习</span>
+            </button>
+
+            {/* 主题按钮 */}
+            <button
+              onClick={() => setShowThemes(prev => !prev)}
+              className={`flex flex-col items-center w-16 py-1 transition-all ${
+                showThemes 
+                  ? 'text-primary' 
+                  : 'text-secondary hover:text-primary/80'
+              }`}
+            >
+              <div
+                className="w-7 h-7 rounded-xl border-2 border-current"
+                style={{ background: currentTheme.colors.primary }}
+              />
+              <span className="text-xs mt-0.5">主题</span>
+            </button>
           </div>
-          
-          <button
-            onClick={() => {
-              if (currentFileId) {
-                setActiveTab('study');
-              }
-            }}
-            className={`flex flex-col items-center p-2 transition-colors ${
-              activeTab === 'study' ? 'text-primary' : 'text-secondary'
-            }`}
-          >
-            {activeTab === 'study' ? (
-              <DocumentTextIconSolid className="w-6 h-6" />
-            ) : (
-              <DocumentTextIcon className="w-6 h-6" />
-            )}
-            <span className="text-xs mt-1">学习</span>
-          </button>
-
-          <button
-            onClick={() => setShowThemes(prev => !prev)}
-            className={`flex flex-col items-center p-2 transition-colors ${
-              showThemes ? 'text-primary' : 'text-secondary'
-            }`}
-          >
-            <div
-              className="w-6 h-6 rounded-lg border-2 border-current"
-              style={{ background: currentTheme.colors.primary }}
-            />
-            <span className="text-xs mt-1">主题</span>
-          </button>
         </div>
 
         {/* 主题选择面板 */}
@@ -795,9 +842,9 @@ $$`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-full left-0 right-0 p-4 glass border-t border-secondary/10"
+              className="absolute bottom-full left-0 right-0 p-4 glass border-t border-secondary/10 bg-card-background/95"
             >
-              <div className="grid grid-cols-5 gap-4">
+              <div className="grid grid-cols-5 gap-4 max-w-lg mx-auto">
                 {themes.map(theme => (
                   <button
                     key={theme.name}
@@ -806,15 +853,17 @@ $$`}
                       applyTheme(theme);
                       setShowThemes(false);
                     }}
-                    className="flex flex-col items-center gap-2"
+                    className="flex flex-col items-center gap-2 transition-all hover:scale-110"
                   >
                     <div
-                      className={`w-12 h-12 rounded-xl border-2 transition-transform hover:scale-110 ${
-                        theme.name === currentTheme.name ? 'border-primary' : 'border-secondary/20'
+                      className={`w-12 h-12 rounded-2xl border-2 ${
+                        theme.name === currentTheme.name 
+                          ? 'border-primary shadow-lg' 
+                          : 'border-secondary/20'
                       }`}
                       style={{ background: theme.colors.primary }}
                     />
-                    <span className="text-xs">{theme.name}</span>
+                    <span className="text-xs font-medium">{theme.name}</span>
                   </button>
                 ))}
               </div>
