@@ -16,4 +16,5 @@ export interface FileData {
   cards: Card[];
   lastModified: number;
   currentIndex: number;
+  pinned?: boolean;
 } 

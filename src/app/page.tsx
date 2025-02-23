@@ -15,11 +15,13 @@ import {
   ArrowUpTrayIcon,
   PencilIcon,
   CheckIcon,
+  StarIcon,
 } from '@heroicons/react/24/outline';
 import {
   HomeIcon as HomeIconSolid,
   DocumentTextIcon as DocumentTextIconSolid,
   TrashIcon,
+  StarIcon as StarIconSolid,
 } from '@heroicons/react/24/solid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -394,6 +396,12 @@ export default function Home() {
     setActiveTab('edit');
   };
 
+  const handleTogglePin = (fileId: string) => {
+    setFiles(prev => prev.map(f => 
+      f.id === fileId ? { ...f, pinned: !f.pinned } : f
+    ));
+  };
+
   const renderMainContent = () => {
     if (files.length === 0) {
       return (
@@ -451,6 +459,7 @@ $$`}
                   <button
                     onClick={() => handleSearch('')}
                     className="p-1 hover:text-primary transition-colors"
+                    aria-label="清除搜索"
                   >
                     <XMarkIcon className="w-4 h-4" />
                   </button>
@@ -523,52 +532,81 @@ $$`}
                 )}
               </div>
               <div className="grid gap-4 grid-cols-1">
-                {files.map(file => (
-                  <div
-                    key={file.id}
-                    className="apple-card p-4"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div
-                        className="flex items-center gap-3 flex-1"
-                        onClick={() => {
-                          setCurrentFileId(file.id);
-                          setActiveTab('study');
-                        }}
-                      >
-                        <div className="bg-secondary-background p-2 rounded-xl">
-                          <DocumentTextIcon className="w-6 h-6 text-primary" />
+                {files
+                  .sort((a, b) => {
+                    // 首先按照置顶状态排序
+                    if (a.pinned && !b.pinned) return -1;
+                    if (!a.pinned && b.pinned) return 1;
+                    // 然后按照修改时间排序
+                    return b.lastModified - a.lastModified;
+                  })
+                  .map(file => (
+                    <div
+                      key={file.id}
+                      className="apple-card p-4"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div
+                          className="flex items-center gap-3 flex-1"
+                          onClick={() => {
+                            setCurrentFileId(file.id);
+                            setActiveTab('study');
+                          }}
+                        >
+                          <div className="bg-secondary-background p-2 rounded-xl">
+                            <DocumentTextIcon className="w-6 h-6 text-primary" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium">{file.name}</h3>
+                              {file.pinned && (
+                                <StarIconSolid className="w-4 h-4 text-primary" />
+                              )}
+                            </div>
+                            <p className="text-sm text-secondary">
+                              {file.cards.length} 张卡片
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-medium">{file.name}</h3>
-                          <p className="text-sm text-secondary">
-                            {file.cards.length} 张卡片
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleTogglePin(file.id)}
+                            className={`text-secondary p-2 transition-colors ${
+                              file.pinned ? 'text-primary hover:text-secondary' : 'hover:text-primary'
+                            }`}
+                            title={file.pinned ? "取消置顶" : "置顶"}
+                          >
+                            {file.pinned ? (
+                              <StarIconSolid className="w-5 h-5" />
+                            ) : (
+                              <StarIcon className="w-5 h-5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleEditFile(file.id)}
+                            className="text-secondary hover:text-primary p-2 transition-colors"
+                            title="编辑"
+                          >
+                            <PencilIcon className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleExport(file.id)}
+                            className="text-secondary hover:text-primary p-2 transition-colors"
+                            title="导出"
+                          >
+                            <ArrowDownTrayIcon className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteFile(file.id)}
+                            className="text-secondary hover:text-destructive p-2 transition-colors"
+                            title="删除"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEditFile(file.id)}
-                          className="text-secondary hover:text-primary p-2 transition-colors"
-                        >
-                          <PencilIcon className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleExport(file.id)}
-                          className="text-secondary hover:text-primary p-2 transition-colors"
-                        >
-                          <ArrowDownTrayIcon className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteFile(file.id)}
-                          className="text-secondary hover:text-destructive p-2 transition-colors"
-                        >
-                          <TrashIcon className="w-5 h-5" />
-                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </>
           )}
@@ -590,6 +628,7 @@ $$`}
             <button
               onClick={handleSaveNote}
               className="p-2 text-primary hover:text-accent transition-colors"
+              aria-label="保存笔记"
             >
               <CheckIcon className="w-6 h-6" />
             </button>
@@ -614,6 +653,7 @@ $$`}
             <button
               onClick={() => setShowToc(prev => !prev)}
               className="p-2 -ml-2 text-secondary hover:text-primary transition-colors"
+              aria-label={showToc ? "关闭目录" : "打开目录"}
             >
               {showToc ? (
                 <XMarkIcon className="w-6 h-6" />
@@ -705,6 +745,7 @@ $$`}
               onClick={prevCard}
               disabled={currentFile.currentIndex === 0}
               className="p-4 rounded-full glass disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95"
+              aria-label="上一张卡片"
             >
               <ChevronUpIcon className="w-6 h-6" />
             </button>
@@ -712,6 +753,7 @@ $$`}
               onClick={nextCard}
               disabled={currentFile.currentIndex === currentFile.cards.length - 1}
               className="p-4 rounded-full glass disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95"
+              aria-label="下一张卡片"
             >
               <ChevronDownIcon className="w-6 h-6" />
             </button>
@@ -750,6 +792,7 @@ $$`}
         className="hidden"
         ref={fileInputRef}
         onChange={handleFileChange}
+        aria-label="导入 Markdown 文件"
       />
 
       {renderMainContent()}
@@ -792,6 +835,7 @@ $$`}
             <button
               onClick={handleCreateNote}
               className="absolute left-1/2 -translate-x-1/2 -top-6 bg-primary text-black p-4 rounded-2xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"
+              aria-label="新建笔记"
             >
               <PlusIcon className="w-6 h-6" />
             </button>
