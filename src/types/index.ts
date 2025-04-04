@@ -17,4 +17,22 @@ export interface FileData {
   lastModified: number;
   currentIndex: number;
   pinned?: boolean;
+}
+
+export interface Bookmark {
+  id: string;
+  title: string;
+  url: string;
+  description?: string;
+  tags?: string[];
+  createdAt: number;
+  favicon?: string;
+}
+
+export interface BookmarkCollection {
+  id: string;
+  name: string;
+  bookmarks: Bookmark[];
+  lastModified: number;
+  pinned?: boolean;
 } 
